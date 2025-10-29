@@ -2,6 +2,6 @@
 
 ## Contributors 
 * Amanda
-* Jeremiah
+* Jeremiah Lezama
 * William
 * Tori
