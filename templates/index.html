@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weekly Mileage Tracker</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏃 Weekly Mileage Tracker</h1>
+            <p>Track your running progress and stay on target</p>
+        </div>
+        
+        <div class="content">
+            <div id="status" class="status"></div>
+            
+            <div class="controls">
+                <div class="week-selector">
+                    <label for="weekSelect">Select Week:</label>
+                    <!-- 
+                        The onchange event is now handled by JavaScript in script.js
+                        I've removed it from the HTML to keep it clean.
+                    -->
+                    <select id="weekSelect">
+                        <option value="current">Current Week</option>
+                        <!-- Previous weeks will be populated dynamically -->
+                    </select>
+                </div>
+                
+                <div class="goal-display">
+                    <strong>Weekly Goal:</strong> <span class="goal-value" id="goalValue">--</span> miles
+                </div>
+            </div>
+            
+            <table class="mileage-table">
+                <thead>
+                    <tr>
+                        <th>Day</th>
+                        <th>Date</th>
+                        <th>Mileage</th>
+                    </tr>
+                </thead>
+                <tbody id="mileageTableBody">
+                    <!-- Table rows will be populated dynamically -->
+                    <tr>
+                        <td>Monday</td>
+                        <td>--</td>
+                        <td class="mileage-value empty">--</td>
+                    </tr>
+                    <tr>
+                        <td>Tuesday</td>
+                        <td>--</td>
+                        <td class="mileage-value empty">--</td>
+                    </tr>
+                    <tr>
+                        <td>Wednesday</td>
+                        <td>--</td>
+                        <td class="mileage-value empty">--</td>
+                    </tr>
+                    <tr>
+                        <td>Thursday</td>
+                        <td>--</td>
+                        <td class="mileage-value empty">--</td>
+                    </tr>
+                    <tr>
+                        <td>Friday</td>
+                        <td>--</td>
+                        <td class="mileage-value empty">--</td>
+                    </tr>
+                    <tr>
+                        <td>Saturday</td>
+                        <td>--</td>
+                        <td class="mileage-value empty">--</td>
+                    </tr>
+                    <tr>
+                        <td>Sunday</td>
+                        <td>--</td>
+                        <td class="mileage-value empty">--</td>
+                    </tr>
+                    <tr>
+                        <td colspan="2"><strong>Total</strong></td>
+                        <td class="total-cell"><strong id="totalMileage">0.00</strong> miles</td>
+                    </tr>
+                </tbody>
+            </table>
+            
+            <div class="summary">
+                <div class="summary-card completed">
+                    <h3>Completed</h3>
+                    <div class="value" id="completedMileage">0.00</div>
+                    <div style="font-size: 0.8em; color: #666; margin-top: 5px;">miles</div>
+                </div>
+                
+                <div class="summary-card">
+                    <h3>Goal</h3>
+                    <div class="value" id="goalDisplay">--</div>
+                    <div style="font-size: 0.8em; color: #666; margin-top: 5px;">miles</div>
+                </div>
+                
+                <div class="summary-card remaining">
+                    <h3>Remaining</h3>
+                    <div class="value" id="remainingMileage">--</div>
+                    <div style="font-size: 0.8em; color: #666; margin-top: 5px;">miles</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
