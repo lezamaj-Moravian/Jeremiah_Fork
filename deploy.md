@@ -49,6 +49,49 @@ To deploy and run the application locally, follow these steps:
 
 The application will be running locally and you should see "Hello, World!" when you visit the root URL.
 
+
+## Deploy on AWS
+
+1.**Create your EC2 instance on AWS
+        
+2. SSH into your created instance
+```bash
+ssh -i ~/.ssh/labsuser.pem ec2-user@<IPv 4 address>
+```
+   
+3. Install Git
+```bash
+sudo yum install -y git
+```
+        
+4. Clone the repo into your EC2 instance
+```bash
+git clone https://github.com/cs298f25/Amanda-Jeremaiah-William-Tori.git
+cd your-repo-name
+```
+
+5. Create a Virtual Environment
+```bash
+python3 -m venv .venv
+```     
+
+6. Activate the Virtual Environment
+```bash
+source .venv/bin/activate
+```
+
+7. Install Dependencies
+```bash
+pip install -r requirements.txt
+```
+
+8. Run the Deployment Script
+```bash
+sh ec2-deploy.sh
+```
+
+
+
 ### Note
 - The app runs in development mode by default
 - To stop the server, press `Ctrl+C` in your terminal
