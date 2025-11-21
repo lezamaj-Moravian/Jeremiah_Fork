@@ -4,11 +4,18 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-WorkingDirectory=/Amanda-Jeremaiah-William-Tori/src
-ExecStart=/Amanda-Jeremaiah-William-Tori/.venv/bin/gunicorn \
+# Set a dedicated, non-root user for security (e.g., ec2-user)
+User=ec2-user
+Group=ec2-user
+# Use the new, clear installation directory
+WorkingDirectory=/opt/Amanda-Jeremaiah-William-Tori/src
+# Use the new, clear installation directory
+ExecStart=/opt/Amanda-Jeremaiah-William-Tori/.venv/bin/gunicorn \
           --bind 0.0.0.0:80 \
           --workers 4 \
           app:app
+# Restart if the app crashes
+Restart=always
 
 [Install]
 WantedBy=multi-user.target
