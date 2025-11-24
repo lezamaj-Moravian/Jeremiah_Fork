@@ -67,28 +67,25 @@ sudo yum install -y git
 4. Clone the repo into your EC2 instance
 ```bash
 git clone https://github.com/cs298f25/Amanda-Jeremaiah-William-Tori.git
-cd your-repo-name
+cd Amanda-Jeremaiah-William-Tori
 ```
 
-5. Create a Virtual Environment
+5. Change permissions on the script file
 ```bash
-python3 -m venv .venv
+chmod +x userdata.sh
 ```     
 
-6. Activate the Virtual Environment
+6. Run the Deploy script
 ```bash
-source .venv/bin/activate
+sudo ./userdata.sh
 ```
 
-7. Install Dependencies
+7. Access the Web Page
 ```bash
-pip install -r requirements.txt
+http://[your-public-ip]:8000
 ```
 
-8. Run the Deployment Script
-```bash
-sh ec2-deploy.sh
-```
+
 
 
 
