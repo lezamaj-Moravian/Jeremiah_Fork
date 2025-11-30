@@ -23,7 +23,7 @@ def init_db():
             password_hash VARCHAR(128) NOT NULL,
                        
             strava_athlete_id INTEGER UNIQUE,
-            strava_access_token TEXT,
+            client_secret TEXT,
             strava_refresh_token TEXT,
             token_expiration INTEGER
         )
@@ -90,6 +90,7 @@ def get_user_by_username(username):
 def create_user(username, password, strava_athlete_id, strava_access_token, strava_refresh_token):
     """Create a new user. Returns the new user's ID."""
     # Hash the password using werkzeug's secure hashing
+    #should probably hash the tokens, but need to find a way to retrieve them later
     if check_if_user_exists(username):
         raise ValueError("User already exists")
     
@@ -151,11 +152,14 @@ def get_refresh_token_by_username(username):
     if user_row:
         return user_row.get('strava_refresh_token')
     return None
-    
 
 def get_client_id_from_username(username):
     user_row = get_user_by_username(username)
     return user_row['strava_athlete_id']
+
+def get_client_secret_by_username(username):
+    user_row = get_user_by_username(username)
+    return user_row['client_secret']
 
 def get_most_recent_activity_date_by_username(username):
     #will pass in session username when using this function
