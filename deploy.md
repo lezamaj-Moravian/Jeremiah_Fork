@@ -51,7 +51,7 @@ To deploy and run the application locally, follow these steps:
 
 ## Deploy on AWS
 
-1. Create your EC2 instance on AWS
+1. Create your EC2 instance on AWS-
 Paste this into your User Data when creating the instance:
 ```bash
 yum install -y git
