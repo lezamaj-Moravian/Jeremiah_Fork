@@ -47,14 +47,26 @@ To deploy and run the application locally, follow these steps:
 6. **Access the application:**
    - Open your browser and navigate to: `http://localhost:5000` or `http://127.0.0.1:5000`
 
-The application will be running locally and you should see "Hello, World!" when you visit the root URL.
 
 
 ## Deploy on AWS
 
 1. Create your EC2 instance on AWS
+Paste this into your User Data when creating the instance:
+```bash
+yum install -y git
+git clone https://github.com/cs298f25/Amanda-Jeremaiah-William-Tori.git
+cd /Amanda-Jeremaiah-William-Tori
+chmod +x ec2-deploy.sh
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp stravaapp.service /etc/systemd/system
+systemctl enable stravaapp.service
+systemctl start stravaapp.service
+```
         
-2. SSH into your created instance
+3. SSH into your created instance
 ```bash
 ssh -i ~/.ssh/labsuser.pem ec2-user@<IPv 4 address>
 ```
