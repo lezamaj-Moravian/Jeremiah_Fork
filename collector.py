@@ -1,3 +1,5 @@
+import os
+from dotenv import load_dotenv
 import datetime
 import time
 import requests
@@ -5,10 +7,98 @@ import database
 
 #info about the athlete is stored in the database, so no need to store it here
 
-global activities_cache #idk how this is workin atm
-global last_fetch_date #last fetch date for activities
+load_dotenv()
 
-def refresh_access_token(client_id, client_secret, refresh_token):
+def exchange_code_for_tokens(code):
+    client_id = os.getenv("STRAVA_CLIENT_ID")
+    client_secret = os.getenv("STRAVA_CLIENT_SECRET")
+
+    payload = {
+        'client_id': client_id,
+        'client_secret': client_secret,
+        'code': code,
+        'grant_type': 'authorization_code'
+    }
+    response = requests.post("https://www.strava.com/oauth/token", data=payload)
+
+    if response.status_code != 200:
+        print(f"Error exchanging code: {response.text}")
+        response.raise_for_status()
+
+    return response.json()
+
+def authorize_and_save_user(code, user_id):
+    data = exchange_code_for_tokens(code)
+
+    access_token = data.get('access_token')
+    refresh_token = data.get('refresh_token')
+    expires_at = data.get('expires_at')
+
+    athlete_info = data.get('athlete', {})
+
+    strava_id = athlete_info.get('id')
+    first_name = athlete_info.get('firstname')
+    last_name = athlete_info.get('lastname')
+    gender = athlete_info.get('sex')
+
+    database.save_user_tokens_and_info(
+        user_id,
+        access_token,
+        refresh_token,
+        expires_at,
+        strava_id,
+        first_name,
+        last_name,
+        gender
+    )
+
+
+def fetch_athlete_data(user_id):
+    print(f"updating user data for ID: {user_id}")
+    user_row = database.get_user_by_id(user_id)
+
+    if user_row == None:
+        print(f"Could not find User ID: {user_id}")
+        return
+    username = user_row["username"]
+
+    try:
+        athlete_row = database.get_row_from_athletes_table(username)
+        add_initial_activities_to_db(username)
+        print(f"Sync complete for {username}")
+    except Exception as e:
+        print(f"Sync failed for {username}")
+
+def get_valid_access_token(user_id):
+    tokens = database.get_user_tokens(user_id)
+
+    if not tokens:
+        print(f"No tokens found for User: {user_id}")
+        return None
+    
+    access_token = tokens['strava_access_token']
+    refresh_token = tokens['strava_refresh_token']
+    token_expiration = tokens['token_expiration']
+
+#FIXME take this out eventually
+    if token_expiration is None:
+        print(f"DEBUG: Expiration is None for User {user_id}. Forcing refresh...")
+        # If we have a refresh token, use it to fix the DB
+        if refresh_token:
+            return refresh_access_token(user_id, refresh_token)
+        else:
+            print("ERROR: No refresh token available. User must re-connect.")
+            return None
+
+    if token_expiration < time.time() and token_expiration > (token_expiration - 300):
+        return refresh_access_token(user_id, refresh_token)
+    
+    return access_token
+
+
+def refresh_access_token(user_id, refresh_token):
+    client_id = os.getenv('STRAVA_CLIENT_ID')
+    client_secret = os.getenv('STRAVA_CLIENT_SECRET')
     """Refresh Strava access token. Returns new access token."""
     token_url = "https://www.strava.com/oauth/token"
     payload = {
@@ -17,22 +107,19 @@ def refresh_access_token(client_id, client_secret, refresh_token):
         'grant_type': 'refresh_token',
         'refresh_token': refresh_token
     }
-    print(f"DEBUG: Refreshing access token for client_id: {client_id}")
+    
     response = requests.post(token_url, data=payload)
-    
-    if response.status_code != 200:
-        print(f"DEBUG: Token refresh failed with status {response.status_code}")
-        print(f"DEBUG: Response: {response.text}")
-        response.raise_for_status()
-    
-    tokens = response.json()
-    access_token = tokens.get('access_token')
-    if not access_token:
-        print(f"DEBUG: Token response missing access_token. Full response: {tokens}")
-        raise ValueError("Token refresh response missing access_token")
-    
-    print(f"DEBUG: Successfully refreshed access token (length: {len(access_token)})")
-    return access_token
+    response.raise_for_status()
+    data = response.json()
+
+    database.save_user_tokens_and_info(
+        user_id,
+        data['access_token'],
+        data['refresh_token'],
+        data['expires_at']
+    )
+
+    return data['access_token']
 
 def get_current_user_information(username):
     #username is the session username
@@ -54,16 +141,9 @@ def get_current_user_information(username):
 
     return athlete_info
 
-def update_athlete_info_in_db(username):
-    athlete_info = get_current_user_information(username)
-    database.update_athlete_with_collector_info(username, athlete_info['firstname'], athlete_info['lastname'], athlete_info['sex'])
-
 
 def fetch_activities(username):
     """Fetches activities from Strava API and stores them in cache. Returns activities or raises exception."""
-    
-    global activities_cache
-    global last_fetch_date
 
     print(f"DEBUG: fetch_activities called for username: {username}")
     client_id = database.get_client_id_from_username(username)
@@ -121,43 +201,43 @@ def fetch_activities(username):
     
     return activities
 
-def add_initial_activities_to_db(username):
-    print(f"DEBUG: add_initial_activities_to_db called for username: {username}")
-    activities = fetch_activities(username)
-    print(f"DEBUG: Got {len(activities)} activities from fetch_activities")
-    user_id = database.get_user_id_from_username(username)
-    print(f"DEBUG: User ID: {user_id}")
-    
-    activities_added = 0
-    activities_skipped = 0
-    
-    for activity in activities:
-        start_date = activity['start_date']
-        date_string = start_date[:10]
+def fetch_and_save_user_data(user_id):
+    seconds_in_30_days = 2592000
 
-        distance_meters = activity['distance']
-        distance_miles = distance_meters * 0.000621371
+    try:
+        token = get_valid_access_token(user_id)
 
-        if not database.activity_exists(user_id, date_string, distance_miles, activity['name']):
-            database.create_activity(user_id, date_string, distance_miles, activity['name'])
-            activities_added += 1
-        else:
-            activities_skipped += 1
-    
-    print(f"DEBUG: Added {activities_added} new activities, skipped {activities_skipped} existing activities")
+        start_date = int(time.time()) - seconds_in_30_days
 
-def add_new_activities_to_db(username, date):
-    activities = fetch_activities_after_date(username, date)
-    user_id = database.get_user_id_from_username(username)
-    for activity in activities:
-        start_date = activity['start_date']
-        date_string = start_date[:10]
+        url = "https://www.strava.com/api/v3/athlete/activities"
+        headers = {"Authorization": f"Bearer {token}"}
+        params = {"after": start_date, "per_page": 50}
 
-        distance_meters = activity['distance']
-        distance_miles = distance_meters * 0.000621371
+        response = requests.get(url,headers=headers, params=params)
+        response.raise_for_status()
+        activities = response.json()
 
-        if not database.activity_exists(user_id, date_string, distance_miles, activity['name']):
-            database.create_activity(user_id, date_string, distance_miles, activity['name'])
+        count = 0
+        for activity in activities:
+            miles = round(activity['distance'] * 0.000621371, 2)
+            date_str = activity['start_date_local'].split('T')[0]
+            title = activity['name']
+
+            database.create_activity(
+                user_id=user_id,
+                date=date_str,
+                distance=miles,
+                title=title
+
+            )
+            count += 1
+
+        print(f"Imported {count} activities for User: {user_id}")
+
+    except Exception as e:
+        print(f"Error for User {user_id}: {e}")
+
+
 
 
 def fetch_activities_after_date(username, date):

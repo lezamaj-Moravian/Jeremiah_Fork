@@ -1,5 +1,6 @@
 import sqlite3
 import datetime
+import time
 from werkzeug.security import generate_password_hash, check_password_hash
 
 DB_NAME = "MileageTracker.db"
@@ -25,7 +26,8 @@ def init_db():
             strava_athlete_id INTEGER UNIQUE,
             strava_access_token TEXT,
             strava_refresh_token TEXT,
-            token_expiration INTEGER
+            token_expiration INTEGER,
+            last_sync_time INTEGER DEFAULT 0
         )
         """)
 
@@ -50,7 +52,8 @@ def init_db():
             date DATE,
             distance REAL,
             activity_title VARCHAR(100),
-            FOREIGN KEY (user_id) REFERENCES Users(id)
+            FOREIGN KEY (user_id) REFERENCES Users(id),
+            UNIQUE(user_id, date, activity_title)
         )
         """)
 
@@ -66,6 +69,17 @@ def get_connection():
 
 
 # USER MANAGEMENT METHODS
+
+def update_last_sync_time(user_id):
+    current_time = int(time.time())
+    conn = get_connection()
+    cursor = conn.cursor()
+    conn.execute(
+        "UPDATE Users SET last_sync_time = ? WHERE id = ?", 
+        (current_time, user_id)
+    )
+    conn.commit()
+    conn.close()
 
 def get_user_by_id(user_id):
     """Get user by ID. Returns row dict or None."""
@@ -147,20 +161,49 @@ def validate_password(username, password):
     else:
         return False
 
-def get_refresh_token_by_username(username):
-    """Get the refresh token for a user by username. Returns the token string or None."""
-    user_row = get_user_by_username(username)
-    if user_row:
-        return user_row.get('strava_refresh_token')
-    return None
+def get_user_tokens(user_id):
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT strava_access_token, strava_refresh_token, token_expiration FROM Users WHERE id = ?", 
+        (user_id,)
+    ).fetchone()
+    conn.close()
+    return row
 
-def get_client_id_from_username(username):
-    user_row = get_user_by_username(username)
-    return user_row['strava_athlete_id']
 
-def get_client_secret_by_username(username):
-    user_row = get_user_by_username(username)
-    return user_row['client_secret']
+def save_user_tokens_and_info(user_id, access_token, refresh_token, expires_at, strava_id, first_name, last_name):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    access_token = access_token
+    refresh_token = refresh_token
+    expires_at = expires_at
+
+    strava_athlete_id = strava_id
+    first_name = first_name
+    last_name = last_name
+    gender = gender
+
+    cursor.execute(
+        """UPDATE Users 
+           SET strava_athlete_id = ?, 
+               strava_access_token = ?, 
+               strava_refresh_token = ?, 
+               token_expiration = ?
+           WHERE id = ?""",
+        (strava_athlete_id, access_token, refresh_token, expires_at, user_id)
+    )
+
+    cursor.execute(
+        """INSERT OR REPLACE INTO Athletes (user_id, first_name, last_name, gender)
+           VALUES (?, ?, ?, ?)""",
+        (user_id, first_name, last_name, gender)
+    )
+
+    conn.commit()
+    conn.close()
+    print(f"Tokens and profile info saved for User ID: {user_id}")
+
 
 def get_most_recent_activity_date_by_username(username):
     #will pass in session username when using this function
@@ -189,11 +232,13 @@ def get_activity_distance_by_date(date):
     conn.close()
     return row[0] if row else None
 
-def create_activity(user_id, date, distance, activity_title):
+def create_activity(user_id, date, distance, title):
     #will be called when an activity is grabbed by the collector (so info is just passed in)
     conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("INSERT INTO DailyMileage (user_id, date, distance, activity_title) VALUES (?, ?, ?, ?)", (user_id, date, distance, activity_title))
+    conn.execute(
+        "INSERT OR IGNORE INTO DailyMileage (user_id, date, distance) VALUES (?, ?, ?, ?)", 
+        (user_id, date, distance, title)
+    )
     conn.commit()
     conn.close()
 
@@ -210,23 +255,6 @@ def get_row_from_athletes_table(username):
     conn.close()
     return dict(row) if row else None
 
-def create_athlete_at_registration(username):
-    #athlete table should be updated via information acquired from the collector
-    user_row = get_user_by_username(username)
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("INSERT INTO Athletes (user_id) VALUES (?)", (user_row['id'],))
-    conn.commit()
-    conn.close()
-
-def update_athlete_with_collector_info(username, first_name, last_name, gender):
-    user_row = get_row_from_athletes_table(username)
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("UPDATE Athletes SET first_name = ?, last_name = ?, gender = ? WHERE user_id = ?", (first_name, last_name, gender, user_row['user_id']))
-    conn.commit()
-    conn.close()
-
 def set_long_run_goal(username, long_run_goal):
     user_row = get_row_from_athletes_table(username)
     conn = get_connection()
@@ -242,43 +270,6 @@ def set_mileage_goal(username, mileage_goal):
     cursor.execute("UPDATE Athletes SET mileage_goal = ? WHERE user_id = ?", (mileage_goal, user_row['user_id']))
     conn.commit()
     conn.close()
-
-def activity_exists(user_id, date, distance, activity_title):
-    """Check if an activity already exists. Returns True/False."""
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT activity_id FROM DailyMileage WHERE user_id = ? AND date = ? AND distance = ? AND activity_title = ?",
-        (user_id, date, distance, activity_title)
-    )
-    row = cursor.fetchone()
-    conn.close()
-    return row is not None
-
-# def save_user_tokens(user_id, tokens):
-#     """Save Strava tokens to user. tokens is a dict with access_token, refresh_token, expires_at, athlete.id"""
-#     conn = get_connection()
-#     cursor = conn.cursor()
-#     cursor.execute(
-#         """UPDATE Users 
-#            SET strava_athlete_id = ?, 
-#                strava_access_token = ?, 
-#                strava_refresh_token = ?, 
-#                token_expiration = ?
-#            WHERE id = ?""",
-#         (
-#             tokens.get('athlete', {}).get('id'),
-#             tokens.get('access_token'),
-#             tokens.get('refresh_token'),
-#             tokens.get('expires_at'),
-#             user_id
-#         )
-#     )
-#     conn.commit()
-#     conn.close()
-
-
-# ACTIVITY METHODS
 
 def get_activities_for_user(user_id):
     """Get all activities for a user. Returns list of dicts."""
