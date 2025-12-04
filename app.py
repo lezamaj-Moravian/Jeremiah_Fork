@@ -48,12 +48,7 @@ def dashboard():
     has_strava = database.user_has_strava(current_user.id)
 
     if current_time - last_sync > 900:
-        sync_thread = threading.Thread(
-            target=collector.fetch_and_save_user_data,
-            args=(current_user.id,)
-        )
-        sync_thread.start()
-
+        collector.fetch_and_save_user_data
         database.update_last_sync_time(current_user.id)
     
     
@@ -150,12 +145,7 @@ def strava_callback():
     
     try:
         collector.authorize_and_save_user(code, current_user.id)
-
-        sync_thread = threading.Thread(
-            target=collector.fetch_and_save_user_data,
-            args=(current_user.id,)
-        )
-        sync_thread.start()
+        collector.fetch_and_save_user_data(current_user.id)
         database.update_last_sync_time(current_user.id)
         
         flash("Connected! Syncing your runs now...")
